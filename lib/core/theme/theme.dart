@@ -353,7 +353,7 @@ class MaterialTheme {
           bodyColor: colorScheme.onSurface,
           displayColor: colorScheme.onSurface,
         ),
-        scaffoldBackgroundColor: colorScheme.background,
+        scaffoldBackgroundColor: colorScheme.surface,
         canvasColor: colorScheme.surface,
       );
 
@@ -362,7 +362,7 @@ class MaterialTheme {
         brightness: colorScheme.brightness,
         colorScheme: colorScheme,
         // textTheme: textThemeData(),
-        scaffoldBackgroundColor: colorScheme.background,
+        scaffoldBackgroundColor: colorScheme.surface,
         canvasColor: colorScheme.surface,
       );
 

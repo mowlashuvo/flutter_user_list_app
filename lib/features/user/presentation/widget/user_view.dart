@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -21,7 +22,7 @@ class UserTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 40.r,
-                backgroundImage: NetworkImage(user.avatar ?? ''),
+                backgroundImage: CachedNetworkImageProvider(user.avatar ?? '',),
               ),
               SizedBox(width: 10.w,),
               Column(

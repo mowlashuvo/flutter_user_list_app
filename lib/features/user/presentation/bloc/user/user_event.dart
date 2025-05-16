@@ -7,18 +7,7 @@ abstract class UserEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class UserLoadEvent extends UserEvent {
-  final int page;
-  final int limit;
-
-  const UserLoadEvent({
-    this.page = 1,
-    this.limit = 10,
-  });
-
-  @override
-  List<Object?> get props => [page, limit];
-}
+class UserLoadEvent extends UserEvent {}
 
 class UserRefreshEvent extends UserEvent {
   final int page;

@@ -14,11 +14,11 @@ A Flutter app that displays users from Reqres API with features like infinite sc
 - Bloc for state management
 
 ## Packages Used
-- dio
+- google_fonts
 - flutter_bloc
 - get_it
-- connectivity_plus
-- hive
+- get_storage
+- dartz
 
 ## 🔧 Setup Instructions
 ```bash

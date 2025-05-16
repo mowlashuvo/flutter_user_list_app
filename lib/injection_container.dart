@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:get_storage/get_storage.dart';
 import 'core/http_client/client.dart';
 import 'features/user/data/datasources/user_remote_datasource.dart';
 import 'features/user/data/repositories/user_repository_impl.dart';
@@ -10,7 +11,7 @@ GetIt sl = GetIt.instance;
 
 Future<void> initializeDependencies() async {
   // Bloc
-  sl.registerFactory(() => UserBloc(useCase: sl()));
+  sl.registerFactory(() => UserBloc(useCase: sl(), box: sl()));
 
   // Use cases
   sl.registerLazySingleton(() => UserUseCase(repository: sl()));
@@ -23,4 +24,5 @@ Future<void> initializeDependencies() async {
       () => UserRemoteDataSourceImpl(client: sl()));
   // Http service
   sl.registerLazySingleton<BaseApiClient>(() => BaseApiClient());
+  sl.registerLazySingleton(() => GetStorage());
 }

@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/user_entity.dart';
-import '../bloc/user/user_bloc.dart';
 import '../bloc/user_details_cubit.dart';
-import '../widget/user_view.dart';
 
 class UserDetailPage extends StatelessWidget {
   final String id;

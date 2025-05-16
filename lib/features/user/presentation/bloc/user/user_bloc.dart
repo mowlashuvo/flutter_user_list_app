@@ -1,8 +1,11 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../../../my_app.dart';
 import '../../../domain/entities/user_entity.dart';
 import '../../../domain/usecases/user_usecase.dart';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 
 part 'user_event.dart';
 
@@ -18,35 +21,46 @@ class UserBloc extends Bloc<UserEvent, UserState> {
   String getPageCacheKey(int page) => 'user_list_page_$page';
   String cachedPageTimestampKey = 'user_list_page_timestamp';
   final Duration cacheValidity = Duration(hours: 10);
-  final box = GetStorage();
-
+  final GetStorage _box;
 
   UserBloc({
     required UserUseCase useCase,
+    required GetStorage box,
   })  : _useCase = useCase,
+        _box = box,
         super(const UserLoadingState()) {
-    on<UserLoadEvent>(_onLoadUser);
+    on<UserLoadEvent>(_onLoadUser, transformer: droppable());
     on<UserRefreshEvent>(_onRefresh);
     on<UserSearchEvent>(_onUserSearch);
   }
 
   Future<void> _onLoadUser(
-      UserLoadEvent event,
-      Emitter<UserState> emit,
-      ) async {
+    UserLoadEvent event,
+    Emitter<UserState> emit,
+  ) async {
     if (hasReachedMax || isLoading) return;
-
     isLoading = true;
-
-    final pageKey = getPageCacheKey(event.page);
-    final cachedPageJson = box.read(pageKey);
-    final cachedPageTimestampStr = box.read('$cachedPageTimestampKey${event.page}');
+    if (currentPage != 1) {
+      emit(UserSuccessState(
+        data: List.from(userList),
+        hasReachedMax: hasReachedMax,
+        isLoadingMore: true,
+      ));
+    }
+    await Future.delayed(Duration(seconds: 2));
+    final pageKey = getPageCacheKey(currentPage);
+    final cachedPageJson = _box.read(pageKey);
+    final cachedPageTimestampStr =
+        _box.read('$cachedPageTimestampKey$currentPage');
 
     bool useCache = false;
 
     if (cachedPageJson != null && cachedPageTimestampStr != null) {
       final cachedTimestamp = DateTime.parse(cachedPageTimestampStr);
-      if (DateTime.now().difference(cachedTimestamp) < cacheValidity) {
+      final cachedPageList = (cachedPageJson as List)
+          .map((e) => UserDataEntity.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      if (DateTime.now().difference(cachedTimestamp) < cacheValidity && cachedPageList.isNotEmpty) {
         useCache = true;
       }
     }
@@ -70,16 +84,36 @@ class UserBloc extends Bloc<UserEvent, UserState> {
     }
 
     // Load from API if no valid cache
-    final result = await _useCase.getUser(page: event.page, limit: event.limit);
+    final result = await _useCase.getUser(page: currentPage, limit: 10);
 
     result.fold((failure) {
-      emit(UserErrorState(error: failure.message));
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(failure.message),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () {
+              // Retry the same event
+              add(UserLoadEvent());
+            },
+          ),
+        ),
+      );
+      emit(UserSuccessState(
+        data: List.from(userList),
+        hasReachedMax: hasReachedMax,
+        isLoadingMore: false,
+      ));
       isLoading = false;
     }, (data) {
       final pageData = data.data ?? [];
-
       if ((data.totalPages ?? 0) <= currentPage) {
         hasReachedMax = true;
+        rootScaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('No more data available'),
+          ),
+        );
       }
 
       if (pageData.isEmpty && userList.isEmpty) {
@@ -94,8 +128,9 @@ class UserBloc extends Bloc<UserEvent, UserState> {
         ));
 
         // Save each page to cache
-        box.write(pageKey, pageData.map((e) => e.toJson()).toList());
-        box.write('$cachedPageTimestampKey${event.page}', DateTime.now().toIso8601String());
+        _box.write(pageKey, pageData.map((e) => e.toJson()).toList());
+        _box.write('$cachedPageTimestampKey$currentPage',
+            DateTime.now().toIso8601String());
 
         currentPage++;
       }
@@ -104,20 +139,18 @@ class UserBloc extends Bloc<UserEvent, UserState> {
     });
   }
 
-
-
   Future<void> _onRefresh(
-      UserRefreshEvent event,
-      Emitter<UserState> emit,
-      ) async {
+    UserRefreshEvent event,
+    Emitter<UserState> emit,
+  ) async {
     currentPage = 1;
     hasReachedMax = false;
     isLoading = true;
 
     // 🚫 Clear all cached pages
     for (int i = 1; i <= 100; i++) {
-      box.remove(getPageCacheKey(i));
-      box.remove('$cachedPageTimestampKey$i');
+      _box.remove(getPageCacheKey(i));
+      _box.remove('$cachedPageTimestampKey$i');
     }
 
     userList.clear();
@@ -132,6 +165,11 @@ class UserBloc extends Bloc<UserEvent, UserState> {
 
       if ((data.totalPages ?? 0) <= currentPage) {
         hasReachedMax = true;
+        rootScaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('No more data available'),
+          ),
+        );
       }
 
       userList.addAll(pageData);
@@ -146,8 +184,10 @@ class UserBloc extends Bloc<UserEvent, UserState> {
         ));
 
         // Cache page 1
-        box.write(getPageCacheKey(1), pageData.map((e) => e.toJson()).toList());
-        box.write('$cachedPageTimestampKey''1', DateTime.now().toIso8601String());
+        _box.write(
+            getPageCacheKey(1), pageData.map((e) => e.toJson()).toList());
+        _box.write(
+            '$cachedPageTimestampKey' '1', DateTime.now().toIso8601String());
 
         currentPage++;
       }
@@ -156,13 +196,12 @@ class UserBloc extends Bloc<UserEvent, UserState> {
     });
   }
 
-
-
   Future<void> _onUserSearch(
     UserSearchEvent event,
     Emitter<UserState> emit,
   ) async {
-    if (event.query.isEmpty) {
+    final query = event.query.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    if (query.isEmpty) {
       emit(UserSuccessState(
         data: List.from(userList),
         hasReachedMax: hasReachedMax,
@@ -171,17 +210,17 @@ class UserBloc extends Bloc<UserEvent, UserState> {
       return;
     }
 
-    final filteredUsersFirstName = userList
-        .where((user) {
-          return user.firstName?.toLowerCase().contains(event.query.toLowerCase())??false;
-        })
-        .toList();
+    final filteredUsersFirstName = userList.where((user) {
+      return user.firstName
+              ?.toLowerCase()
+              .contains(query.toLowerCase()) ??
+          false;
+    }).toList();
 
-    final filteredUsersLastName = userList
-        .where((user) {
-          return user.lastName?.toLowerCase().contains(event.query.toLowerCase())??false;
-        })
-        .toList();
+    final filteredUsersLastName = userList.where((user) {
+      return user.lastName?.toLowerCase().contains(query.toLowerCase()) ??
+          false;
+    }).toList();
 
     List<UserDataEntity> filteredUser = [];
 

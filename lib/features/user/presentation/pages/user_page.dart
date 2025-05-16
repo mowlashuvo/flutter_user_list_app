@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../bloc/user/user_bloc.dart';
 import '../bloc/user_details_cubit.dart';
 import '../widget/user_view.dart';
-import 'user_detail_page.dart';
 
 class UserPage extends StatefulWidget {
   const UserPage({super.key});
@@ -19,7 +20,7 @@ class UserPage extends StatefulWidget {
 
 class _UserPageState extends State<UserPage> {
   final ScrollController _controller = ScrollController();
-  int currentPage = 1;
+  Timer? _scrollDebounce;
 
   @override
   void initState() {
@@ -33,11 +34,11 @@ class _UserPageState extends State<UserPage> {
         final state = context.read<UserBloc>().state;
         if (state is UserSuccessState &&
             !state.hasReachedMax &&
-            !bloc.isLoading) {
-          currentPage++;
-          context
-              .read<UserBloc>()
-              .add(UserLoadEvent(page: currentPage, limit: 10));
+            !state.isLoadingMore) {
+          if (_scrollDebounce?.isActive ?? false) return;
+          _scrollDebounce = Timer(const Duration(milliseconds: 400), () {
+            bloc.add(UserLoadEvent());
+          });
         }
       }
     });
@@ -64,7 +65,8 @@ class _UserPageState extends State<UserPage> {
               return Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
                     child: TextField(
                       decoration: const InputDecoration(
                         hintText: 'Search by name...',
@@ -81,9 +83,7 @@ class _UserPageState extends State<UserPage> {
                   Expanded(
                     child: RefreshIndicator(
                       onRefresh: () async {
-                        currentPage = 1;
-                        context.read<UserBloc>().add(
-                            UserRefreshEvent(page: currentPage, limit: 10));
+                        context.read<UserBloc>().add(UserRefreshEvent());
                       },
                       child: ListView.builder(
                         controller: _controller,
@@ -120,7 +120,7 @@ class _UserPageState extends State<UserPage> {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
-                        context.read<UserBloc>().add(UserLoadEvent(page: 1, limit: 10));
+                        context.read<UserBloc>().add(UserLoadEvent());
                       },
                       child: const Text('Retry'),
                     ),
@@ -141,5 +141,6 @@ class _UserPageState extends State<UserPage> {
     // TODO: implement dispose
     super.dispose();
     _controller.dispose();
+    _scrollDebounce?.cancel();
   }
 }

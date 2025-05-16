@@ -9,6 +9,8 @@ import 'user/presentation/bloc/user_details_cubit.dart';
 import 'user/presentation/pages/user_detail_page.dart';
 import 'user/presentation/pages/user_page.dart';
 
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -35,6 +37,7 @@ class _MyAppState extends State<MyApp> {
         splitScreenMode: true,
         ensureScreenSize: true,
         child: MaterialApp.router(
+          scaffoldMessengerKey: rootScaffoldMessengerKey,
           debugShowCheckedModeBanner: false,
           routerConfig: router,
           theme: MaterialTheme.lightTheme(),

@@ -16,6 +16,7 @@ class UserBloc extends Bloc<UserEvent, UserState> {
   int currentPage = 1;
   bool hasReachedMax = false;
   bool isLoading = false;
+  bool _hasShownSnackBar = false;
   List<UserDataEntity> userList = [];
 
   String getPageCacheKey(int page) => 'user_list_page_$page';
@@ -38,6 +39,14 @@ class UserBloc extends Bloc<UserEvent, UserState> {
     UserLoadEvent event,
     Emitter<UserState> emit,
   ) async {
+    if(hasReachedMax){
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('No more data available'),
+        ),
+      );
+      return;
+    }
     if (hasReachedMax || isLoading) return;
     isLoading = true;
     if (currentPage != 1) {
@@ -47,7 +56,6 @@ class UserBloc extends Bloc<UserEvent, UserState> {
         isLoadingMore: true,
       ));
     }
-    await Future.delayed(Duration(seconds: 2));
     final pageKey = getPageCacheKey(currentPage);
     final cachedPageJson = _box.read(pageKey);
     final cachedPageTimestampStr =
@@ -82,23 +90,25 @@ class UserBloc extends Bloc<UserEvent, UserState> {
       isLoading = false;
       return;
     }
-
     // Load from API if no valid cache
     final result = await _useCase.getUser(page: currentPage, limit: 10);
 
     result.fold((failure) {
-      rootScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(
-          content: Text(failure.message),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () {
-              // Retry the same event
-              add(UserLoadEvent());
-            },
+      if(!_hasShownSnackBar){
+        _hasShownSnackBar = true;
+        rootScaffoldMessengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text(failure.message),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () {
+                // Retry the same event
+                add(UserLoadEvent());
+              },
+            ),
           ),
-        ),
-      );
+        );
+      }
       emit(UserSuccessState(
         data: List.from(userList),
         hasReachedMax: hasReachedMax,
@@ -106,9 +116,13 @@ class UserBloc extends Bloc<UserEvent, UserState> {
       ));
       isLoading = false;
     }, (data) {
+      _hasShownSnackBar = false;
       final pageData = data.data ?? [];
       if ((data.totalPages ?? 0) <= currentPage) {
         hasReachedMax = true;
+      }
+
+      if(pageData.isEmpty){
         rootScaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(
             content: Text('No more data available'),
@@ -165,11 +179,6 @@ class UserBloc extends Bloc<UserEvent, UserState> {
 
       if ((data.totalPages ?? 0) <= currentPage) {
         hasReachedMax = true;
-        rootScaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('No more data available'),
-          ),
-        );
       }
 
       userList.addAll(pageData);

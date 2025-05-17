@@ -18,12 +18,23 @@ class UserRepositoryImpl implements UserRepository {
     try {
       final result = await _remoteDataSource.getUser(page: page, limit: limit);
       return Right(result.toEntity());
-    } on ServerException {
-      return const Left(ServerFailure('No Internet Connection'));
-    } on SocketException {
-      return const Left(ConnectionFailure('No Internet Connection'));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } on SocketException catch (e) {
+      if (e.osError?.message == 'Network is unreachable') {
+        return const Left(ConnectionFailure('No Internet Connection'));
+      }
+      return Left(ConnectionFailure(e.message));
+    } on NoInternetException catch (e) {
+      if (e.message == 'Network is unreachable') {
+        return const Left(ConnectionFailure('No Internet Connection'));
+      }
+      return Left(ConnectionFailure(e.message));
     } on AuthException {
-      return const Left(AuthFailure(''));
+      return const Left(AuthFailure('Authentication Failure'));
+    }
+    catch (e) {
+      return Left(ServerFailure(e.toString()));
     }
   }
 }
